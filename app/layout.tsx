@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins, Mulish } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -10,7 +11,7 @@ const poppins = Poppins({
 const mulish = Mulish({
   variable: "--font-mulish",
   subsets: ["latin"],
-  weight: [ "200", "300", "400", "500", "600", "700", "800", "900"],
+  weight: ["200", "300", "400", "500", "600", "700", "800", "900"],
 });
 
 export const metadata: Metadata = {
@@ -25,7 +26,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${mulish.variable}  antialiased`}>{children}</body>
+      <body className={`${mulish.variable}  antialiased`}>
+        {" "}
+        <main>{children}</main>
+        <Toaster />
+      </body>
     </html>
   );
 }
