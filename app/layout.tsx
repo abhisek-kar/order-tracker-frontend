@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins, Mulish } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import "mapbox-gl/dist/mapbox-gl.css";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -27,7 +28,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${mulish.variable}  antialiased`}>
-        {" "}
         <main>{children}</main>
         <Toaster />
       </body>
