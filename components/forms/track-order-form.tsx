@@ -243,9 +243,9 @@ export function OrderDetails({ orderData }: { orderData: OrderData }) {
               customerAddress={orderData.customerInfo.address}
               orderStatus={orderData.status}
               orderId={orderData.taskId}
-              showRoute={false}
+              showRoute={true}
               showPath={false}
-              height="400px"
+              height="500px"
             />
           </CardContent>
         </Card>
