@@ -1,4 +1,4 @@
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/sections/app-sidebar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { usePathname } from "next/navigation";
 
-export default function AppBreadCrumb() {
+export default function AppTopbar() {
   const pathName = usePathname();
   const segments = pathName.split("/");
   return (

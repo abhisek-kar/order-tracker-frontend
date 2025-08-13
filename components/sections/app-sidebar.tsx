@@ -13,7 +13,9 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarHeader,
 } from "@/components/ui/sidebar";
+import { Separator } from "@radix-ui/react-separator";
 
 const items = [
   {
@@ -33,9 +35,14 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
+      <SidebarHeader>
+        <Link href="/dashboard" className=" text-xl font-bold p-2">
+          Hi Admin
+        </Link>
+      </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupLabel></SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => {

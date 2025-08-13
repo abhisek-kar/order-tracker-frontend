@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/auth";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/sections/app-sidebar";
 import PageLoader from "@/components/page-loader";
-import AppBreadCrumb from "@/components/app-breadcrumb";
+import AppTopbar from "@/components/sections/app-topbar";
 
 export default function DashboardLayout({
   children,
@@ -31,13 +31,11 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen">
-        <AppSidebar />
-        <main className="flex-1 bg-red-100 w-full">
-          <AppBreadCrumb />
-          <div className="p-4">{children}</div>
-        </main>
-      </div>
+      <AppSidebar />
+      <main className="flex-1">
+        <AppTopbar />
+        <div className="p-4  h-full">{children}</div>
+      </main>
     </SidebarProvider>
   );
 }
