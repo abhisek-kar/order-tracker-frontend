@@ -37,6 +37,7 @@ const formSchema = z.object({
   customerPhone: z
     .string()
     .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number." }),
+  customerEmail: z.email({ message: "Invalid email address." }),
   customerLocation: z.object({
     latitude: z.number().min(-90).max(90, { message: "Invalid latitude." }),
     longitude: z.number().min(-180).max(180, { message: "Invalid longitude." }),
@@ -56,6 +57,7 @@ export default function OrderForm({ onOrderPlaced }: OrderFormProps) {
     defaultValues: {
       customerName: "",
       customerPhone: "",
+      customerEmail: "",
       customerLocation: {
         latitude: 20.26,
         longitude: 85.84,
@@ -77,6 +79,7 @@ export default function OrderForm({ onOrderPlaced }: OrderFormProps) {
       const orderData = {
         customerInfo: {
           name: values.customerName,
+          email: values.customerEmail,
           address: values.customerLocation.address,
           latitude: values.customerLocation.latitude,
           longitude: values.customerLocation.longitude,
@@ -86,8 +89,7 @@ export default function OrderForm({ onOrderPlaced }: OrderFormProps) {
         preferredTime: values.preferredDateTime,
       };
       const response = await api.post("/orders", orderData);
-      onOrderPlaced?.(response?.data?.taskId || "Unknown Order ID");
-
+      onOrderPlaced?.(response?.data?.data?.taskId || "Unknown Order ID");
     } catch (error: any) {
       const message =
         error.response?.data?.message ||
@@ -128,7 +130,20 @@ export default function OrderForm({ onOrderPlaced }: OrderFormProps) {
                       </FormItem>
                     )}
                   />
-
+                  {/* Customer Email */}
+                  <FormField
+                    control={form.control}
+                    name="customerEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Enter Your Email</FormLabel>
+                        <FormControl>
+                          <Input placeholder="xyz@gmail.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   {/* Customer Phone */}
                   <FormField
                     control={form.control}
@@ -143,7 +158,6 @@ export default function OrderForm({ onOrderPlaced }: OrderFormProps) {
                       </FormItem>
                     )}
                   />
-
                   {/* Preferred Date & Time */}
                   <FormField
                     control={form.control}
@@ -161,7 +175,6 @@ export default function OrderForm({ onOrderPlaced }: OrderFormProps) {
                       </FormItem>
                     )}
                   />
-
                   {/* Delivery Item */}
                   <FormField
                     control={form.control}
@@ -179,7 +192,6 @@ export default function OrderForm({ onOrderPlaced }: OrderFormProps) {
                       </FormItem>
                     )}
                   />
-
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Placing Order..." : "Place Order"}
                   </Button>

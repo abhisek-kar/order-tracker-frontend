@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getToken } from "@/lib/auth";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/sections/app-sidebar";
 import PageLoader from "@/components/page-loader";
 import AppTopbar from "@/components/sections/app-topbar";
+import { useAuthStore } from "@/lib/store";
 
 export default function DashboardLayout({
   children,
@@ -14,18 +14,28 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { isLoggedIn, token } = useAuthStore((state) => state);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push("/login");
-    } else {
-      setIsAuthenticated(true);
-    }
-  }, [router]);
+    const unSub = useAuthStore.persist.onFinishHydration(() => {
+      setHydrated(true);
+    });
+    setHydrated(useAuthStore.persist.hasHydrated());
+    return unSub;
+  }, []);
 
-  if (!isAuthenticated) {
+  useEffect(() => {
+    if (hydrated && (!isLoggedIn || !token)) {
+      router.push("/login");
+    }
+  }, [hydrated, isLoggedIn, token, router]);
+
+  if (!hydrated) {
+    return <PageLoader />;
+  }
+
+  if (!isLoggedIn || !token) {
     return <PageLoader />;
   }
 
@@ -34,7 +44,7 @@ export default function DashboardLayout({
       <AppSidebar />
       <main className="flex-1">
         <AppTopbar />
-        <div className="p-4  h-full">{children}</div>
+        <div className="p-4 h-full">{children}</div>
       </main>
     </SidebarProvider>
   );

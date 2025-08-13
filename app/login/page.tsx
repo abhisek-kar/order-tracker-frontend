@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -27,6 +27,8 @@ import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
 import { setToken } from "@/lib/auth";
 import { Eye, EyeOff } from "lucide-react";
+import { useAuthStore } from "@/lib/store";
+import PageLoader from "@/components/page-loader";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -37,6 +39,22 @@ export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { login, isLoggedIn } = useAuthStore((state) => state);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const unSub = useAuthStore.persist.onFinishHydration(() =>
+      setHydrated(true)
+    );
+    setHydrated(useAuthStore.persist.hasHydrated());
+    return unSub;
+  }, []);
+
+  useEffect(() => {
+    if (hydrated && isLoggedIn) {
+      router.push("/dashboard");
+    }
+  }, [hydrated, isLoggedIn, router]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -51,13 +69,12 @@ export default function LoginPage() {
     try {
       const response = await api.post("/auth/login", values);
 
-      const { token } = response.data;
-      if (token) {
-        setToken(token);
+      const { token, user } = response?.data?.data;
+      if (token && user) {
+        login(token, user);
         toast.success("Login successful!");
-        router.push("/dashboard");
       } else {
-        toast.error("Login failed: No token received.");
+        toast.error("Login failed: Invalid response from server.");
       }
     } catch (error: any) {
       const message =
@@ -67,6 +84,10 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!hydrated) {
+    return <PageLoader />;
   }
 
   return (
