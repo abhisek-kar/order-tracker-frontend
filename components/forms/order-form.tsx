@@ -204,6 +204,7 @@ export default function OrderForm({ onOrderPlaced }: OrderFormProps) {
                   </FormLabel>
 
                   <MapPicker
+                    height="400px"
                     initialLat={
                       form.getValues("customerLocation.latitude") || undefined
                     }

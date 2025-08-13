@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import api from "@/lib/api";
+import { toast } from "sonner";
 
 type Order = {
   _id: string;
@@ -38,6 +40,7 @@ const statusColumns = [
 
 export default function OrdersKanban() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const router = useRouter();
 
   const fetchOrders = async () => {
     try {
@@ -64,26 +67,34 @@ export default function OrdersKanban() {
     }
 
     const updatedOrders = orders.map((order) =>
-      order._id === draggableId
+      order.taskId === draggableId
         ? { ...order, status: destination.droppableId as Order["status"] }
         : order
     );
     setOrders(updatedOrders);
 
-    try {
-      await api.patch(`/orders/${draggableId}/status`, {
-        status: destination.droppableId,
-      });
-    } catch (error) {
-      console.error("Failed to update order:", error);
+    if (destination.droppableId !== source.droppableId) {
+      try {
+        await api.patch(`/orders/${draggableId}/status`, {
+          status: destination.droppableId,
+        });
+        toast.success("Order status updated successfully");
+      } catch (error: any) {
+        const message =
+          error?.response?.data?.message || "Failed to update order";
+        toast.error(message);
+        fetchOrders();
+      }
     }
+  };
+
+  const handleCardClick = (orderId: string, event: React.MouseEvent) => {
+    if (event.defaultPrevented) return;
+    router.push(`/dashboard/orders/${orderId}`);
   };
 
   return (
     <div className="p-4 md:p-6">
-      <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">
-        Orders Kanban Board
-      </h1>
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto">
           {statusColumns.map((column) => (
@@ -108,10 +119,11 @@ export default function OrdersKanban() {
                         >
                           {(provided) => (
                             <div
-                              className="bg-white rounded-md p-3 mb-3 shadow cursor-pointer"
+                              className="bg-white rounded-md p-3 mb-3 shadow cursor-pointer hover:shadow-md transition-shadow"
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
+                              onClick={(e) => handleCardClick(order.taskId, e)}
                             >
                               <div className="font-semibold text-sm mb-1">
                                 {order.customerInfo.name}

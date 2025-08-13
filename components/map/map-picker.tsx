@@ -7,12 +7,17 @@ import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
 import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 
 type MapPickerProps = {
+  height?: string;
+  width?: string;
   initialLat?: number;
   initialLon?: number;
   selectedLat?: number;
   selectedLon?: number;
   selectedAddress?: string;
   onLocationSelect: (lat: number, lon: number, address: string) => void;
+  showGeocoder?: boolean;
+  showMyLocation?: boolean;
+  showMarker?: boolean;
 };
 
 const DEFAULT_LOCATION = {
@@ -28,6 +33,11 @@ export function MapPicker({
   selectedLon,
   selectedAddress,
   onLocationSelect,
+  height = "300px",
+  width = "100%",
+  showGeocoder = true,
+  showMyLocation = true,
+  showMarker = true,
 }: MapPickerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -37,12 +47,14 @@ export function MapPicker({
     async (lng: number, lat: number, givenAddress?: string) => {
       if (!mapRef.current) return;
 
-      if (markerRef.current) {
-        markerRef.current.setLngLat([lng, lat]);
-      } else {
-        markerRef.current = new mapboxgl.Marker({ color: "red" })
-          .setLngLat([lng, lat])
-          .addTo(mapRef.current);
+      if (showMarker) {
+        if (markerRef.current) {
+          markerRef.current.setLngLat([lng, lat]);
+        } else {
+          markerRef.current = new mapboxgl.Marker({ color: "red" })
+            .setLngLat([lng, lat])
+            .addTo(mapRef.current);
+        }
       }
 
       if (givenAddress) {
@@ -61,7 +73,7 @@ export function MapPicker({
         }
       }
     },
-    [onLocationSelect]
+    [onLocationSelect, showMarker]
   );
 
   const addGeocoder = useCallback(
@@ -123,29 +135,50 @@ export function MapPicker({
     mapRef.current = map;
 
     map.addControl(new mapboxgl.NavigationControl());
-    addGeocoder(map);
-    addMyLocationButton(map);
+
+    if (showGeocoder) {
+      addGeocoder(map);
+    }
+
+    if (showMyLocation) {
+      addMyLocationButton(map);
+    }
 
     map.on("click", (e) => {
       const { lng, lat } = e.lngLat;
       setMarkerLocation(lng, lat);
     });
 
-    // Initial location
-    if (navigator.geolocation) {
+    // Initial location setup - only if selectedLat/selectedLon are not provided
+    if (typeof selectedLat === "number" && typeof selectedLon === "number") {
+      // Use the provided selected location
+      map.flyTo({ center: [selectedLon, selectedLat], zoom: 14 });
+      if (showMarker) {
+        setMarkerLocation(selectedLon, selectedLat, selectedAddress);
+      }
+    } else if (navigator.geolocation && showMyLocation) {
+      // Try to get current location if showMyLocation is enabled
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           map.flyTo({ center: [lng, lat], zoom: 14 });
-          setMarkerLocation(lng, lat, "Your current location");
+          if (showMarker) {
+            setMarkerLocation(lng, lat, "Your current location");
+          }
         },
         () => {
-          setMarkerLocation(initialLon, initialLat);
+          // Fallback to initial location
+          if (showMarker) {
+            setMarkerLocation(initialLon, initialLat);
+          }
         }
       );
     } else {
-      setMarkerLocation(initialLon, initialLat);
+      // Use initial location as fallback
+      if (showMarker) {
+        setMarkerLocation(initialLon, initialLat);
+      }
     }
 
     return () => {
@@ -159,14 +192,23 @@ export function MapPicker({
       typeof selectedLon === "number" &&
       mapRef.current
     ) {
-      setMarkerLocation(selectedLon, selectedLat, selectedAddress);
+      mapRef.current.flyTo({ center: [selectedLon, selectedLat], zoom: 14 });
+      if (showMarker) {
+        setMarkerLocation(selectedLon, selectedLat, selectedAddress);
+      }
     }
-  }, [selectedLat, selectedLon, selectedAddress, setMarkerLocation]);
+
+    // Remove marker if showMarker is false
+    if (!showMarker && markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+  }, [selectedLat, selectedLon, selectedAddress, showMarker]);
 
   return (
     <div
       ref={mapContainerRef}
-      style={{ width: "100%", height: "300px", borderRadius: "8px" }}
+      style={{ width: width, height: height, borderRadius: "8px" }}
     />
   );
 }

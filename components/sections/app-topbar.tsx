@@ -1,4 +1,3 @@
-import { AppSidebar } from "@/components/sections/app-sidebar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -12,7 +11,8 @@ import { usePathname } from "next/navigation";
 
 export default function AppTopbar() {
   const pathName = usePathname();
-  const segments = pathName.split("/");
+  const segments = pathName.split("/").filter(Boolean);
+
   return (
     <SidebarInset>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -24,23 +24,17 @@ export default function AppTopbar() {
         <Breadcrumb>
           <BreadcrumbList>
             {segments.map((segment, index) => {
-              if (segment) {
-                return (
-                  <div key={index} className="flex items-center">
-                    <BreadcrumbItem key={index}>
-                      <BreadcrumbLink
-                        href={`/${segments.slice(0, index + 1).join("/")}`}
-                      >
-                        {segment.charAt(0).toUpperCase() + segment.slice(1)}
-                      </BreadcrumbLink>
-                    </BreadcrumbItem>
-                    {index < segments.length - 1 && (
-                      <BreadcrumbSeparator key={`separator-${index}`} />
-                    )}
-                  </div>
-                );
-              }
-              return null;
+              const href = `/${segments.slice(0, index + 1).join("/")}`;
+              return (
+                <BreadcrumbItem key={href}>
+                  <BreadcrumbLink href={href}>
+                    {segment
+                      .replace(/-/g, " ")
+                      .replace(/^\w/, (c) => c.toUpperCase())}
+                  </BreadcrumbLink>
+                  {index < segments.length - 1 && <BreadcrumbSeparator />}
+                </BreadcrumbItem>
+              );
             })}
           </BreadcrumbList>
         </Breadcrumb>
@@ -48,3 +42,4 @@ export default function AppTopbar() {
     </SidebarInset>
   );
 }
+
