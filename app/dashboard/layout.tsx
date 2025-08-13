@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/auth";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import PageLoader from "@/components/page-loader";
+import AppBreadCrumb from "@/components/app-breadcrumb";
 
 export default function DashboardLayout({
   children,
@@ -22,17 +26,18 @@ export default function DashboardLayout({
   }, [router]);
 
   if (!isAuthenticated) {
-    return <div>Loading...</div>;
+    return <PageLoader />;
   }
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-64 bg-background text-foreground p-4">
-        <nav>
-          <p>Dashboard</p>
-        </nav>
-      </aside>
-      <main className="flex-1 p-8">{children}</main>
-    </div>
+    <SidebarProvider>
+      <div className="flex min-h-screen">
+        <AppSidebar />
+        <main className="flex-1 bg-red-100 w-full">
+          <AppBreadCrumb />
+          <div className="p-4">{children}</div>
+        </main>
+      </div>
+    </SidebarProvider>
   );
 }
