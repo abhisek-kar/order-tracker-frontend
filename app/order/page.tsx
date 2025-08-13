@@ -1,6 +1,6 @@
 "use client";
 
-import OrderForm from "@/components/order-form";
+import OrderForm from "@/components/forms/order-form";
 import OrderSuccess from "@/components/order-success";
 import * as React from "react";
 import { useState } from "react";

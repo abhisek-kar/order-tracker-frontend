@@ -25,7 +25,7 @@ import {
 
 import api from "@/lib/api";
 import { toast } from "sonner";
-import { MapPicker } from "@/components/map-picker";
+import { MapPicker } from "@/components/map/map-picker";
 import { DateTimePicker } from "@/components/date-time-picker";
 
 export interface OrderFormProps {
