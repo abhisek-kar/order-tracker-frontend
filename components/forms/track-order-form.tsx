@@ -26,10 +26,7 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import PageLoader from "@/components/page-loader";
 import { Label } from "@/components/ui/label";
-
-export interface TrackOrderFormProps {
-  onFetchOrderData?: (data: any) => void;
-}
+import { MapViewer } from "@/components/map/map-viewer";
 
 export interface OrderData {
   _id: string;
@@ -55,9 +52,7 @@ const formSchema = z.object({
   }),
 });
 
-export default function TrackOrderForm({
-  onFetchOrderData,
-}: TrackOrderFormProps) {
+export default function TrackOrderForm() {
   const [loading, setLoading] = useState(false);
   const [orderData, setOrderData] = useState<OrderData | null>(null);
 
@@ -71,8 +66,9 @@ export default function TrackOrderForm({
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
     try {
-      const response = await api.get(`/orders/${values.taskId}`);
+      const response = await api.get(`/orders/${values.taskId.trim()}`);
       setOrderData(response?.data?.data || {});
+      form.reset();
     } catch (error: any) {
       const message =
         error?.response?.data?.message || "Failed to track order.";
@@ -230,6 +226,27 @@ export function OrderDetails({ orderData }: { orderData: OrderData }) {
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Delivery Tracking Map */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              Delivery Tracking
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MapViewer
+              customerLat={orderData.customerInfo.latitude}
+              customerLon={orderData.customerInfo.longitude}
+              customerAddress={orderData.customerInfo.address}
+              orderStatus={orderData.status}
+              orderId={orderData.taskId}
+              showRoute={false}
+              showPath={false}
+              height="400px"
+            />
           </CardContent>
         </Card>
       </div>
