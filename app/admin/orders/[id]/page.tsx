@@ -73,7 +73,7 @@ export default function OrderPage() {
           onClick={() => router.back()}
           className="mb-4"
         >
-          ← Back to Dashboard
+          ← Back to Orders
         </Button>
 
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">

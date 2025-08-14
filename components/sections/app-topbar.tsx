@@ -7,10 +7,12 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { useAuthStore } from "@/lib/store";
 import { usePathname } from "next/navigation";
 
 export default function AppTopbar() {
   const pathName = usePathname();
+
   const segments = pathName.split("/").filter(Boolean);
 
   return (
@@ -25,6 +27,7 @@ export default function AppTopbar() {
           <BreadcrumbList>
             {segments.map((segment, index) => {
               const href = `/${segments.slice(0, index + 1).join("/")}`;
+              console.log("Breadcrumb href:", href);
               return (
                 <BreadcrumbItem key={href}>
                   <BreadcrumbLink href={href}>
@@ -42,4 +45,3 @@ export default function AppTopbar() {
     </SidebarInset>
   );
 }
-

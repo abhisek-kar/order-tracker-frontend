@@ -39,7 +39,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoggedIn } = useAuthStore((state) => state);
+  const { login, isLoggedIn, user } = useAuthStore((state) => state);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -52,7 +52,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (hydrated && isLoggedIn) {
-      router.push("/dashboard");
+      if (user?.role) {
+        router.push(`/${user.role}/dashboard`);
+      } else {
+        toast.error("Unauthorized access.");
+        router.push("/login");
+      }
     }
   }, [hydrated, isLoggedIn, router]);
 

@@ -245,6 +245,7 @@ export function OrderDetails({ orderData }: { orderData: OrderData }) {
               orderId={orderData.taskId}
               showRoute={true}
               showPath={false}
+                enableRealTimeTracking={true}
               height="500px"
             />
           </CardContent>

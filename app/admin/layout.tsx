@@ -8,13 +8,13 @@ import PageLoader from "@/components/page-loader";
 import AppTopbar from "@/components/sections/app-topbar";
 import { useAuthStore } from "@/lib/store";
 
-export default function DashboardLayout({
+export default function AdminDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { isLoggedIn, token } = useAuthStore((state) => state);
+  const { isLoggedIn, token, user } = useAuthStore((state) => state);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export default function DashboardLayout({
   }, []);
 
   useEffect(() => {
-    if (hydrated && (!isLoggedIn || !token)) {
+    if (hydrated && (!isLoggedIn || !token) && user?.role !== "admin") {
       router.push("/login");
     }
   }, [hydrated, isLoggedIn, token, router]);

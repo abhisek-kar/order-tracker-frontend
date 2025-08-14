@@ -19,32 +19,45 @@ import {
 import { Separator } from "@radix-ui/react-separator";
 import { useAuthStore } from "@/lib/store";
 import { Button } from "../ui/button";
-import { useState } from "react";
+import { use, useMemo, useState } from "react";
 import { LogoutDialog } from "../dialogs/logout-dialog";
-
-const items = [
-  {
-    title: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Orders",
-    href: "/dashboard/orders",
-    icon: ShoppingCart,
-  },
-];
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuthStore((state) => state);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  const items = useMemo(() => {
+    return user?.role === "admin"
+      ? [
+          {
+            title: "Dashboard",
+            href: "/admin/dashboard",
+            icon: LayoutDashboard,
+          },
+          {
+            title: "Orders",
+            href: "/admin/orders",
+            icon: ShoppingCart,
+          },
+        ]
+      : [
+          {
+            title: "Dashboard",
+            href: "/agent/dashboard",
+            icon: LayoutDashboard,
+          },
+        ];
+  }, [user?.role]);
+
   return (
     <>
       <Sidebar>
-        <Link href="/dashboard" className=" text-xl font-bold p-4">
-          H! {user?.name || "User"}
+        <Link
+          href={`/${user?.role}/dashboard`}
+          className=" text-xl font-bold p-4"
+        >
+          Hi! {user?.name || "User"}
         </Link>
         <SidebarContent>
           <SidebarGroup>

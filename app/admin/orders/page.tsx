@@ -90,7 +90,7 @@ export default function OrdersKanban() {
 
   const handleCardClick = (orderId: string, event: React.MouseEvent) => {
     if (event.defaultPrevented) return;
-    router.push(`/dashboard/orders/${orderId}`);
+    router.push(`/admin/orders/${orderId}`);
   };
 
   return (

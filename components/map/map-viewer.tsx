@@ -3,6 +3,11 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import {
+  useWebSocket,
+  AgentLocationUpdate,
+  OrderStatusUpdate,
+} from "@/hooks/use-websocket";
 
 type MapViewerProps = {
   // Customer location (destination)
@@ -25,6 +30,7 @@ type MapViewerProps = {
   showPath?: boolean;
   height?: string;
   width?: string;
+  enableRealTimeTracking?: boolean;
 
   // Order info for context
   orderStatus?: string;
@@ -52,6 +58,7 @@ export function MapViewer({
   showPath = false,
   height = "400px",
   width = "100%",
+  enableRealTimeTracking = false,
   orderStatus,
   orderId,
 }: MapViewerProps) {
@@ -66,6 +73,56 @@ export function MapViewer({
     distance: string;
     duration: string;
   } | null>(null);
+
+  // Real-time tracking state
+  const [realTimeAgentLat, setRealTimeAgentLat] = useState<number | undefined>(
+    agentLat
+  );
+  const [realTimeAgentLon, setRealTimeAgentLon] = useState<number | undefined>(
+    agentLon
+  );
+  const [realTimeAgentStatus, setRealTimeAgentStatus] = useState<
+    string | undefined
+  >(agentStatus);
+  const [realTimeOrderStatus, setRealTimeOrderStatus] = useState<
+    string | undefined
+  >(orderStatus);
+  const [isTrackingLive, setIsTrackingLive] = useState(false);
+
+  // WebSocket handlers
+  const handleAgentLocationUpdate = useCallback((data: AgentLocationUpdate) => {
+    setRealTimeAgentLat(data.latitude);
+    setRealTimeAgentLon(data.longitude);
+    setRealTimeAgentStatus(data.status);
+    setIsTrackingLive(true);
+  }, []);
+
+  const handleOrderStatusUpdate = useCallback((data: OrderStatusUpdate) => {
+    setRealTimeOrderStatus(data.status);
+  }, []);
+
+  const handleWebSocketConnect = useCallback(() => {
+    setIsTrackingLive(true);
+  }, []);
+
+  const handleWebSocketDisconnect = useCallback(() => {
+    setIsTrackingLive(false);
+  }, []);
+
+  // WebSocket connection
+  const { isConnected, connectionStatus } = useWebSocket({
+    orderId: enableRealTimeTracking ? orderId : undefined,
+    onAgentLocationUpdate: handleAgentLocationUpdate,
+    onOrderStatusUpdate: handleOrderStatusUpdate,
+    onConnect: handleWebSocketConnect,
+    onDisconnect: handleWebSocketDisconnect,
+  });
+
+  // Use real-time data if available, otherwise fall back to props
+  const currentAgentLat = realTimeAgentLat ?? agentLat;
+  const currentAgentLon = realTimeAgentLon ?? agentLon;
+  const currentAgentStatus = realTimeAgentStatus ?? agentStatus;
+  const currentOrderStatus = realTimeOrderStatus ?? orderStatus;
 
   const createStoreMarker = useCallback(
     (map: mapboxgl.Map) => {
@@ -102,8 +159,8 @@ export function MapViewer({
           <h3 class="font-semibold text-red-900">🏠 Delivery Location</h3>
           <p class="text-sm text-gray-600">${customerAddress}</p>
           ${
-            orderStatus
-              ? `<p class="text-xs mt-1 px-2 py-1 rounded bg-blue-100 text-blue-800">${orderStatus}</p>`
+            currentOrderStatus
+              ? `<p class="text-xs mt-1 px-2 py-1 rounded bg-blue-100 text-blue-800">${currentOrderStatus}</p>`
               : ""
           }
         </div>
@@ -111,7 +168,7 @@ export function MapViewer({
 
       customerMarkerRef.current.setPopup(customerPopup);
     },
-    [customerLat, customerLon, customerAddress, orderStatus]
+    [customerLat, customerLon, customerAddress, currentOrderStatus]
   );
 
   const createAgentMarker = useCallback(
@@ -133,8 +190,8 @@ export function MapViewer({
           <h3 class="font-semibold text-purple-900">🚚 Delivery Agent</h3>
           <p class="text-sm text-gray-600">Current location</p>
           ${
-            agentStatus
-              ? `<p class="text-xs mt-1 px-2 py-1 rounded bg-purple-100 text-purple-800">${agentStatus}</p>`
+            currentAgentStatus
+              ? `<p class="text-xs mt-1 px-2 py-1 rounded bg-purple-100 text-purple-800">${currentAgentStatus}</p>`
               : ""
           }
         </div>
@@ -142,7 +199,7 @@ export function MapViewer({
 
       agentMarkerRef.current.setPopup(agentPopup);
     },
-    [agentStatus]
+    [currentAgentStatus]
   );
 
   const addRoute = useCallback(
@@ -231,8 +288,8 @@ export function MapViewer({
       bounds.extend([customerLon, customerLat]);
 
       // Add agent location if available
-      if (agentLat && agentLon) {
-        bounds.extend([agentLon, agentLat]);
+      if (currentAgentLat && currentAgentLon) {
+        bounds.extend([currentAgentLon, currentAgentLat]);
       }
 
       // Fit map to show all markers with padding
@@ -241,7 +298,14 @@ export function MapViewer({
         maxZoom: 15,
       });
     },
-    [storeLat, storeLon, customerLat, customerLon, agentLat, agentLon]
+    [
+      storeLat,
+      storeLon,
+      customerLat,
+      customerLon,
+      currentAgentLat,
+      currentAgentLon,
+    ]
   );
 
   useEffect(() => {
@@ -264,8 +328,8 @@ export function MapViewer({
       createCustomerMarker(map);
 
       // Create agent marker if location is provided
-      if (agentLat && agentLon) {
-        createAgentMarker(map, agentLat, agentLon);
+      if (currentAgentLat && currentAgentLon) {
+        createAgentMarker(map, currentAgentLat, currentAgentLon);
       }
 
       // Add route if showRoute is enabled
@@ -285,19 +349,50 @@ export function MapViewer({
     };
   }, []);
 
-  // Update agent marker when position changes
+  // Update agent marker when position changes (real-time or props)
   useEffect(() => {
-    if (agentLat && agentLon && mapRef.current) {
+    if (currentAgentLat && currentAgentLon && mapRef.current) {
       if (agentMarkerRef.current) {
-        agentMarkerRef.current.setLngLat([agentLon, agentLat]);
+        // Smooth transition for real-time updates
+        agentMarkerRef.current.setLngLat([currentAgentLon, currentAgentLat]);
       } else {
-        createAgentMarker(mapRef.current, agentLat, agentLon);
+        createAgentMarker(mapRef.current, currentAgentLat, currentAgentLon);
       }
 
-      // Re-fit bounds when agent location updates
-      fitMapToBounds(mapRef.current);
+      // Update agent popup with current status
+      if (agentMarkerRef.current) {
+        const agentPopup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
+          <div class="text-center">
+            <h3 class="font-semibold text-purple-900">🚚 Delivery Agent</h3>
+            <p class="text-sm text-gray-600">Current location</p>
+            ${
+              currentAgentStatus
+                ? `<p class="text-xs mt-1 px-2 py-1 rounded bg-purple-100 text-purple-800">${currentAgentStatus}</p>`
+                : ""
+            }
+            ${
+              isTrackingLive
+                ? `<p class="text-xs mt-1 text-green-600">🟢 Live tracking</p>`
+                : ""
+            }
+          </div>
+        `);
+        agentMarkerRef.current.setPopup(agentPopup);
+      }
+
+      // Only re-fit bounds if this is a significant location change
+      if (isTrackingLive) {
+        fitMapToBounds(mapRef.current);
+      }
     }
-  }, [agentLat, agentLon, createAgentMarker, fitMapToBounds]);
+  }, [
+    currentAgentLat,
+    currentAgentLon,
+    currentAgentStatus,
+    isTrackingLive,
+    createAgentMarker,
+    fitMapToBounds,
+  ]);
 
   // Handle route display when showRoute prop changes
   useEffect(() => {
@@ -320,6 +415,31 @@ export function MapViewer({
 
       {/* Map Info Panel */}
       <div className="absolute top-2 left-2 bg-white bg-opacity-90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-gray-200">
+        {/* Real-time tracking status */}
+        {enableRealTimeTracking && (
+          <div className="mb-2 text-xs">
+            <div className="flex items-center space-x-1">
+              <div
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  backgroundColor: isConnected ? "#10B981" : "#EF4444",
+                  borderRadius: "50%",
+                }}
+              ></div>
+              <span className={isConnected ? "text-green-700" : "text-red-700"}>
+                {connectionStatus === "connecting"
+                  ? "Connecting..."
+                  : connectionStatus === "connected"
+                  ? "Live tracking"
+                  : connectionStatus === "error"
+                  ? "Connection error"
+                  : "Offline"}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Map Legend */}
         <div className="space-y-1 text-xs">
           <div className="flex items-center space-x-1">
@@ -344,7 +464,7 @@ export function MapViewer({
             ></div>
             <span className="text-red-900">Delivery Location</span>
           </div>
-          {agentLat && agentLon && (
+          {currentAgentLat && currentAgentLon && (
             <div className="flex items-center space-x-1">
               <div
                 style={{
@@ -354,10 +474,13 @@ export function MapViewer({
                   borderRadius: "50%",
                 }}
               ></div>
-              <span className="text-purple-900">Agent</span>
+              <span className="text-purple-900">
+                Agent {isTrackingLive ? "(Live)" : ""}
+              </span>
             </div>
           )}
         </div>
+
         {/* Route Information */}
         {routeInfo && showRoute && (
           <div className="mt-2 text-xs text-gray-700">
@@ -367,6 +490,27 @@ export function MapViewer({
               <span>⏱️</span>
               <span>~{routeInfo.duration}</span>
             </div>
+          </div>
+        )}
+
+        {/* Current Order Status */}
+        {currentOrderStatus && (
+          <div className="mt-2">
+            <p
+              className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                currentOrderStatus === "Delivered"
+                  ? "bg-green-100 text-green-800"
+                  : currentOrderStatus === "Out for Delivery"
+                  ? "bg-purple-100 text-purple-800"
+                  : currentOrderStatus === "Picked Up"
+                  ? "bg-orange-100 text-orange-800"
+                  : currentOrderStatus === "Reached Store"
+                  ? "bg-yellow-100 text-yellow-800"
+                  : "bg-blue-100 text-blue-800"
+              }`}
+            >
+              {currentOrderStatus}
+            </p>
           </div>
         )}
       </div>
