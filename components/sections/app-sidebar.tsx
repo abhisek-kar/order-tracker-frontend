@@ -47,6 +47,11 @@ export function AppSidebar() {
             href: "/agent/dashboard",
             icon: LayoutDashboard,
           },
+          {
+            title: "Orders",
+            href: "/agent/orders",
+            icon: ShoppingCart,
+          },
         ];
   }, [user?.role]);
 
