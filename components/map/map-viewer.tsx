@@ -109,20 +109,27 @@ export function MapViewer({
     setIsTrackingLive(false);
   }, []);
 
-  // WebSocket connection
-  const { isConnected, connectionStatus } = useWebSocket({
-    orderId: enableRealTimeTracking ? orderId : undefined,
-    onAgentLocationUpdate: handleAgentLocationUpdate,
-    onOrderStatusUpdate: handleOrderStatusUpdate,
-    onConnect: handleWebSocketConnect,
-    onDisconnect: handleWebSocketDisconnect,
-  });
-
   // Use real-time data if available, otherwise fall back to props
   const currentAgentLat = realTimeAgentLat ?? agentLat;
   const currentAgentLon = realTimeAgentLon ?? agentLon;
   const currentAgentStatus = realTimeAgentStatus ?? agentStatus;
   const currentOrderStatus = realTimeOrderStatus ?? orderStatus;
+
+  // Determine if agent tracking should be shown based on order status
+  const shouldShowAgentTracking =
+    currentOrderStatus === "Picked Up" ||
+    currentOrderStatus === "Out for Delivery";
+  const shouldEnableRealTimeTracking =
+    enableRealTimeTracking && shouldShowAgentTracking;
+
+  // WebSocket connection
+  const { isConnected, connectionStatus } = useWebSocket({
+    orderId: shouldEnableRealTimeTracking ? orderId : undefined,
+    onAgentLocationUpdate: handleAgentLocationUpdate,
+    onOrderStatusUpdate: handleOrderStatusUpdate,
+    onConnect: handleWebSocketConnect,
+    onDisconnect: handleWebSocketDisconnect,
+  });
 
   const createStoreMarker = useCallback(
     (map: mapboxgl.Map) => {
@@ -223,30 +230,61 @@ export function MapViewer({
             },
           };
 
-          // Check if source already exists
-          if (map.getSource(routeSourceId)) {
-            (map.getSource(routeSourceId) as mapboxgl.GeoJSONSource).setData(
-              geojson
-            );
-          } else {
-            map.addSource(routeSourceId, {
-              type: "geojson",
-              data: geojson,
-            });
+          // Check if source already exists and map style is loaded
+          if (map.isStyleLoaded()) {
+            if (map.getSource(routeSourceId)) {
+              (map.getSource(routeSourceId) as mapboxgl.GeoJSONSource).setData(
+                geojson
+              );
+            } else {
+              map.addSource(routeSourceId, {
+                type: "geojson",
+                data: geojson,
+              });
 
-            map.addLayer({
-              id: routeLayerId,
-              type: "line",
-              source: routeSourceId,
-              layout: {
-                "line-join": "round",
-                "line-cap": "round",
-              },
-              paint: {
-                "line-color": "#3B82F6",
-                "line-width": 5,
-                "line-opacity": 0.75,
-              },
+              map.addLayer({
+                id: routeLayerId,
+                type: "line",
+                source: routeSourceId,
+                layout: {
+                  "line-join": "round",
+                  "line-cap": "round",
+                },
+                paint: {
+                  "line-color": "#3B82F6",
+                  "line-width": 5,
+                  "line-opacity": 0.75,
+                },
+              });
+            }
+          } else {
+            // Wait for style to load before adding route
+            map.once("styledata", () => {
+              if (map.getSource(routeSourceId)) {
+                (
+                  map.getSource(routeSourceId) as mapboxgl.GeoJSONSource
+                ).setData(geojson);
+              } else {
+                map.addSource(routeSourceId, {
+                  type: "geojson",
+                  data: geojson,
+                });
+
+                map.addLayer({
+                  id: routeLayerId,
+                  type: "line",
+                  source: routeSourceId,
+                  layout: {
+                    "line-join": "round",
+                    "line-cap": "round",
+                  },
+                  paint: {
+                    "line-color": "#3B82F6",
+                    "line-width": 5,
+                    "line-opacity": 0.75,
+                  },
+                });
+              }
             });
           }
 
@@ -287,8 +325,8 @@ export function MapViewer({
       // Add customer location to bounds
       bounds.extend([customerLon, customerLat]);
 
-      // Add agent location if available
-      if (currentAgentLat && currentAgentLon) {
+      // Add agent location if available and should be shown
+      if (currentAgentLat && currentAgentLon && shouldShowAgentTracking) {
         bounds.extend([currentAgentLon, currentAgentLat]);
       }
 
@@ -305,6 +343,7 @@ export function MapViewer({
       customerLon,
       currentAgentLat,
       currentAgentLon,
+      shouldShowAgentTracking,
     ]
   );
 
@@ -327,8 +366,8 @@ export function MapViewer({
       createStoreMarker(map);
       createCustomerMarker(map);
 
-      // Create agent marker if location is provided
-      if (currentAgentLat && currentAgentLon) {
+      // Create agent marker if location is provided and should be shown
+      if (currentAgentLat && currentAgentLon && shouldShowAgentTracking) {
         createAgentMarker(map, currentAgentLat, currentAgentLon);
       }
 
@@ -351,7 +390,12 @@ export function MapViewer({
 
   // Update agent marker when position changes (real-time or props)
   useEffect(() => {
-    if (currentAgentLat && currentAgentLon && mapRef.current) {
+    if (
+      currentAgentLat &&
+      currentAgentLon &&
+      mapRef.current &&
+      shouldShowAgentTracking
+    ) {
       if (agentMarkerRef.current) {
         // Smooth transition for real-time updates
         agentMarkerRef.current.setLngLat([currentAgentLon, currentAgentLat]);
@@ -384,12 +428,17 @@ export function MapViewer({
       if (isTrackingLive) {
         fitMapToBounds(mapRef.current);
       }
+    } else if (agentMarkerRef.current && !shouldShowAgentTracking) {
+      // Remove agent marker if it shouldn't be shown
+      agentMarkerRef.current.remove();
+      agentMarkerRef.current = null;
     }
   }, [
     currentAgentLat,
     currentAgentLon,
     currentAgentStatus,
     isTrackingLive,
+    shouldShowAgentTracking,
     createAgentMarker,
     fitMapToBounds,
   ]);
@@ -416,7 +465,7 @@ export function MapViewer({
       {/* Map Info Panel */}
       <div className="absolute top-2 left-2 bg-white bg-opacity-90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-gray-200">
         {/* Real-time tracking status */}
-        {enableRealTimeTracking && (
+        {shouldEnableRealTimeTracking && (
           <div className="mb-2 text-xs">
             <div className="flex items-center space-x-1">
               <div
@@ -464,7 +513,7 @@ export function MapViewer({
             ></div>
             <span className="text-red-900">Delivery Location</span>
           </div>
-          {currentAgentLat && currentAgentLon && (
+          {currentAgentLat && currentAgentLon && shouldShowAgentTracking && (
             <div className="flex items-center space-x-1">
               <div
                 style={{

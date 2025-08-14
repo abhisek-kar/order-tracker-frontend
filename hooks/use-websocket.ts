@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { io, Socket } from "socket.io-client";
 
 export type WebSocketMessage = {
   type: string;
@@ -25,19 +26,49 @@ export type OrderStatusUpdate = {
   agentId?: string;
 };
 
+// Order update from backend (matches your IOrder interface)
+export type OrderUpdate = {
+  _id: string;
+  taskId: string;
+  customerInfo: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+  };
+  deliveryItem: string;
+  preferredTime: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  agentInfo?: {
+    name: string;
+    phone: string;
+  };
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
+  eta?: string;
+};
+
 type UseWebSocketProps = {
   orderId?: string;
   onAgentLocationUpdate?: (data: AgentLocationUpdate) => void;
   onOrderStatusUpdate?: (data: OrderStatusUpdate) => void;
+  onOrderUpdate?: (data: OrderUpdate) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
-  onError?: (error: Event) => void;
+  onError?: (error: any) => void;
 };
 
 export function useWebSocket({
   orderId,
   onAgentLocationUpdate,
   onOrderStatusUpdate,
+  onOrderUpdate,
   onConnect,
   onDisconnect,
   onError,
@@ -46,15 +77,15 @@ export function useWebSocket({
   const [connectionStatus, setConnectionStatus] = useState<
     "connecting" | "connected" | "disconnected" | "error"
   >("disconnected");
-  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
+  const [lastMessage, setLastMessage] = useState<any>(null);
 
-  const ws = useRef<WebSocket | null>(null);
+  const socket = useRef<Socket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
 
   const connect = useCallback(() => {
-    if (ws.current?.readyState === WebSocket.OPEN) {
+    if (socket.current?.connected) {
       return;
     }
 
@@ -62,74 +93,78 @@ export function useWebSocket({
       setConnectionStatus("connecting");
 
       // Use environment variable or fallback to localhost
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
-      ws.current = new WebSocket(wsUrl);
+      const serverUrl =
+        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
-      ws.current.onopen = () => {
+      socket.current = io(serverUrl, {
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: maxReconnectAttempts,
+        reconnectionDelay: 1000,
+      });
+
+      socket.current.on("connect", () => {
         setIsConnected(true);
         setConnectionStatus("connected");
         reconnectAttempts.current = 0;
         onConnect?.();
 
-        // Subscribe to order updates if orderId is provided
+        // Join order room if orderId is provided
         if (orderId) {
-          ws.current?.send(
-            JSON.stringify({
-              type: "subscribe",
-              orderId: orderId,
-            })
-          );
+          socket.current?.emit("joinOrderRoom", orderId);
         }
-      };
+      });
 
-      ws.current.onmessage = (event) => {
-        try {
-          const message: WebSocketMessage = JSON.parse(event.data);
-          setLastMessage(message);
+      socket.current.on("orderUpdate", (orderData: OrderUpdate) => {
+        setLastMessage(orderData);
 
-          // Handle different message types
-          switch (message.type) {
-            case "agent_location_update":
-              onAgentLocationUpdate?.(message.data as AgentLocationUpdate);
-              break;
-            case "order_status_update":
-              onOrderStatusUpdate?.(message.data as OrderStatusUpdate);
-              break;
-            default:
-              console.log("Unknown message type:", message.type);
-          }
-        } catch (error) {
-          console.error("Error parsing WebSocket message:", error);
+        // Handle order updates (this includes location and status updates)
+        onOrderUpdate?.(orderData);
+
+        // Extract location update if available
+        if (orderData.location) {
+          const locationUpdate: AgentLocationUpdate = {
+            agentId: orderData.agentInfo?.name || "unknown",
+            latitude: orderData.location.latitude,
+            longitude: orderData.location.longitude,
+            status: orderData.status,
+            timestamp: orderData.updatedAt,
+            orderId: orderData.taskId,
+          };
+          onAgentLocationUpdate?.(locationUpdate);
         }
-      };
 
-      ws.current.onclose = () => {
+        // Extract status update
+        const statusUpdate: OrderStatusUpdate = {
+          orderId: orderData.taskId,
+          status: orderData.status,
+          timestamp: orderData.updatedAt,
+          agentId: orderData.agentInfo?.name,
+        };
+        onOrderStatusUpdate?.(statusUpdate);
+      });
+
+      socket.current.on("disconnect", (reason) => {
         setIsConnected(false);
         setConnectionStatus("disconnected");
         onDisconnect?.();
+        console.log("Socket disconnected:", reason);
+      });
 
-        // Attempt to reconnect
-        if (reconnectAttempts.current < maxReconnectAttempts) {
-          const delay = Math.pow(2, reconnectAttempts.current) * 1000; // Exponential backoff
-          reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectAttempts.current++;
-            connect();
-          }, delay);
-        }
-      };
-
-      ws.current.onerror = (error) => {
+      socket.current.on("connect_error", (error) => {
         setConnectionStatus("error");
         onError?.(error);
-      };
+        console.error("Socket connection error:", error);
+      });
     } catch (error) {
       setConnectionStatus("error");
-      console.error("WebSocket connection error:", error);
+      console.error("Socket.IO connection error:", error);
     }
   }, [
     orderId,
     onAgentLocationUpdate,
     onOrderStatusUpdate,
+    onOrderUpdate,
     onConnect,
     onDisconnect,
     onError,
@@ -140,18 +175,18 @@ export function useWebSocket({
       clearTimeout(reconnectTimeoutRef.current);
     }
 
-    if (ws.current) {
-      ws.current.close();
-      ws.current = null;
+    if (socket.current) {
+      socket.current.disconnect();
+      socket.current = null;
     }
 
     setIsConnected(false);
     setConnectionStatus("disconnected");
   }, []);
 
-  const sendMessage = useCallback((message: any) => {
-    if (ws.current?.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify(message));
+  const sendMessage = useCallback((event: string, data: any) => {
+    if (socket.current?.connected) {
+      socket.current.emit(event, data);
       return true;
     }
     return false;
