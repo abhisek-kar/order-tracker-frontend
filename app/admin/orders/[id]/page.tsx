@@ -27,6 +27,10 @@ type OrderData = {
   status: string;
   createdAt: string;
   updatedAt: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
 };
 
 export default function OrderPage() {
@@ -190,6 +194,8 @@ export default function OrderPage() {
               customerLon={orderData.customerInfo.longitude}
               customerAddress={orderData.customerInfo.address}
               orderStatus={orderData.status}
+              agentLat={orderData?.location?.latitude}
+              agentLon={orderData?.location?.longitude}
               orderId={orderData.taskId}
               showRoute={true}
               showPath={false}

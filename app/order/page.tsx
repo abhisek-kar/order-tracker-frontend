@@ -9,14 +9,11 @@ export default function OrderPage() {
   const [orderId, setOrderId] = useState<string | null>(null);
   return (
     <div className="flex justify-center items-center min-h-screen  p-4">
-     {
-      orderId ? (
-        <OrderSuccess orderId={orderId} />
+      {orderId ? (
+        <OrderSuccess orderId={orderId} onPlaceNewOrder = {()=>setOrderId(null)} />
       ) : (
-        <OrderForm onOrderPlaced={(id:string) => setOrderId(id)} />
-      )
-     }
-
+        <OrderForm onOrderPlaced={(id: string) => setOrderId(id)} />
+      )}
     </div>
   );
 }

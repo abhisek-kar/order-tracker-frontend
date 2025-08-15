@@ -44,6 +44,10 @@ export interface OrderData {
   status: string;
   createdAt: string;
   updatedAt: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
 }
 
 const formSchema = z.object({
@@ -243,9 +247,11 @@ export function OrderDetails({ orderData }: { orderData: OrderData }) {
               customerAddress={orderData.customerInfo.address}
               orderStatus={orderData.status}
               orderId={orderData.taskId}
+              agentLat={orderData?.location?.latitude}
+              agentLon={orderData?.location?.longitude}
               showRoute={true}
               showPath={false}
-                enableRealTimeTracking={true}
+              enableRealTimeTracking={true}
               height="500px"
             />
           </CardContent>

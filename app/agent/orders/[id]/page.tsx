@@ -111,6 +111,14 @@ export default function OrderPage() {
           <AgentLocationTracker
             orderId={orderData.taskId}
             orderStatus={orderData.status}
+            customerLocation={
+              orderData.customerInfo
+                ? {
+                    latitude: orderData.customerInfo.latitude,
+                    longitude: orderData.customerInfo.longitude,
+                  }
+                : undefined
+            }
             onLocationUpdate={handleLocationUpdate}
           />
         </div>

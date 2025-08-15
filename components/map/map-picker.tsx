@@ -62,14 +62,26 @@ export function MapPicker({
       } else {
         try {
           const res = await fetch(
-            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}`
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&types=address,poi&limit=1`
           );
           const data = await res.json();
-          const address =
-            data?.features?.[0]?.place_name || "Address not found";
-          onLocationSelect(lat, lng, address);
-        } catch {
-          onLocationSelect(lat, lng, "");
+
+          if (data?.features && data.features.length > 0) {
+            const feature = data.features[0];
+            const address = feature.place_name || "Address not found";
+            console.log("Reverse geocoded address:", address);
+            onLocationSelect(lat, lng, address);
+          } else {
+            console.warn("No address found for coordinates");
+            onLocationSelect(lat, lng, "Address not found");
+          }
+        } catch (error) {
+          console.error("Reverse geocoding failed:", error);
+          onLocationSelect(
+            lat,
+            lng,
+            `Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`
+          );
         }
       }
     },
@@ -106,12 +118,31 @@ export function MapPicker({
         e.preventDefault();
         e.stopPropagation();
         if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition((pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            map.flyTo({ center: [lng, lat], zoom: 14 });
-            setMarkerLocation(lng, lat, "Your current location");
-          });
+          geoBtn.innerHTML = `Loading...`;
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+              console.log("Current location detected:", {
+                lat,
+                lng,
+                accuracy: pos.coords.accuracy,
+              });
+              map.flyTo({ center: [lng, lat], zoom: 14 });
+              setMarkerLocation(lng, lat); // Don't pass generic text, let it reverse geocode
+              geoBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-locate-fixed"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>`;
+            },
+            (error) => {
+              console.error("Geolocation error:", error);
+              geoBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-locate-fixed"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>`;
+              alert(`Location access failed: ${error.message}`);
+            },
+            {
+              enableHighAccuracy: false,
+              timeout: 10000,
+              maximumAge: 120000,
+            }
+          );
         }
       };
 
@@ -158,20 +189,32 @@ export function MapPicker({
       }
     } else if (navigator.geolocation && showMyLocation) {
       // Try to get current location if showMyLocation is enabled
+      console.log("Attempting to get current location...");
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
+          console.log("Auto location detected:", {
+            lat,
+            lng,
+            accuracy: pos.coords.accuracy,
+          });
           map.flyTo({ center: [lng, lat], zoom: 14 });
           if (showMarker) {
-            setMarkerLocation(lng, lat, "Your current location");
+            setMarkerLocation(lng, lat); // Don't pass generic text, let it reverse geocode
           }
         },
-        () => {
+        (error) => {
+          console.warn("Auto location failed, using default:", error.message);
           // Fallback to initial location
           if (showMarker) {
             setMarkerLocation(initialLon, initialLat);
           }
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 120000,
         }
       );
     } else {

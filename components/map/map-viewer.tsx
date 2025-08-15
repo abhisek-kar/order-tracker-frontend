@@ -8,39 +8,33 @@ import {
   AgentLocationUpdate,
   OrderStatusUpdate,
 } from "@/hooks/use-websocket";
+import { toast } from "sonner";
 
 type MapViewerProps = {
-  // Customer location (destination)
   customerLat: number;
   customerLon: number;
   customerAddress: string;
 
-  // Store location (origin) - optional, will use default if not provided
   storeLat?: number;
   storeLon?: number;
   storeName?: string;
 
-  // Agent tracking (future implementation)
   agentLat?: number;
   agentLon?: number;
-  agentStatus?: string;
 
-  // Visual options
   showRoute?: boolean;
   showPath?: boolean;
   height?: string;
   width?: string;
   enableRealTimeTracking?: boolean;
 
-  // Order info for context
   orderStatus?: string;
   orderId?: string;
 };
 
-// Default store location in Bhubaneswar
 const DEFAULT_STORE = {
-  lat: 20.2961,
-  lng: 85.8245,
+  lat: 21.022472,
+  lng: 86.48814,
   name: "Main Store - Bhubaneswar",
 };
 
@@ -53,7 +47,6 @@ export function MapViewer({
   storeName = DEFAULT_STORE.name,
   agentLat,
   agentLon,
-  agentStatus,
   showRoute = false,
   showPath = false,
   height = "400px",
@@ -74,28 +67,27 @@ export function MapViewer({
     duration: string;
   } | null>(null);
 
-  // Real-time tracking state
   const [realTimeAgentLat, setRealTimeAgentLat] = useState<number | undefined>(
     agentLat
   );
   const [realTimeAgentLon, setRealTimeAgentLon] = useState<number | undefined>(
     agentLon
   );
-  const [realTimeAgentStatus, setRealTimeAgentStatus] = useState<
-    string | undefined
-  >(agentStatus);
   const [realTimeOrderStatus, setRealTimeOrderStatus] = useState<
     string | undefined
   >(orderStatus);
   const [isTrackingLive, setIsTrackingLive] = useState(false);
+  const [isMapReady, setIsMapReady] = useState(false);
 
-  // WebSocket handlers
-  const handleAgentLocationUpdate = useCallback((data: AgentLocationUpdate) => {
-    setRealTimeAgentLat(data.latitude);
-    setRealTimeAgentLon(data.longitude);
-    setRealTimeAgentStatus(data.status);
-    setIsTrackingLive(true);
-  }, []);
+  const handleAgentLocationUpdate = useCallback(
+    (data: AgentLocationUpdate) => {
+      setRealTimeAgentLat(data.latitude);
+      setRealTimeAgentLon(data.longitude);
+      setRealTimeOrderStatus(data.status);
+      setIsTrackingLive(true);
+    },
+    [orderId]
+  );
 
   const handleOrderStatusUpdate = useCallback((data: OrderStatusUpdate) => {
     setRealTimeOrderStatus(data.status);
@@ -109,16 +101,31 @@ export function MapViewer({
     setIsTrackingLive(false);
   }, []);
 
-  // Use real-time data if available, otherwise fall back to props
+  useEffect(() => {
+    if (agentLat && agentLon && !realTimeAgentLat && !realTimeAgentLon) {
+      setRealTimeAgentLat(agentLat);
+      setRealTimeAgentLon(agentLon);
+    }
+
+  
+    if (agentLat && agentLon && realTimeAgentLat && realTimeAgentLon) {
+      const latDiff = Math.abs(agentLat - realTimeAgentLat);
+      const lonDiff = Math.abs(agentLon - realTimeAgentLon);
+
+      if (latDiff > 0.0001 || lonDiff > 0.0001) {
+        setRealTimeAgentLat(agentLat);
+        setRealTimeAgentLon(agentLon);
+      }
+    }
+  }, [agentLat, agentLon, realTimeAgentLat, realTimeAgentLon]);
+
   const currentAgentLat = realTimeAgentLat ?? agentLat;
   const currentAgentLon = realTimeAgentLon ?? agentLon;
-  const currentAgentStatus = realTimeAgentStatus ?? agentStatus;
   const currentOrderStatus = realTimeOrderStatus ?? orderStatus;
 
-  // Determine if agent tracking should be shown based on order status
-  const shouldShowAgentTracking =
-    currentOrderStatus === "Picked Up" ||
-    currentOrderStatus === "Out for Delivery";
+
+  const shouldShowAgentTracking = currentOrderStatus !== "Delivered"; 
+
   const shouldEnableRealTimeTracking =
     enableRealTimeTracking && shouldShowAgentTracking;
 
@@ -160,60 +167,77 @@ export function MapViewer({
         .setLngLat([customerLon, customerLat])
         .addTo(map);
 
-      // Add popup for customer location
       const customerPopup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
         <div class="text-center">
           <h3 class="font-semibold text-red-900">🏠 Delivery Location</h3>
           <p class="text-sm text-gray-600">${customerAddress}</p>
-          ${
-            currentOrderStatus
-              ? `<p class="text-xs mt-1 px-2 py-1 rounded bg-blue-100 text-blue-800">${currentOrderStatus}</p>`
-              : ""
-          }
         </div>
       `);
 
       customerMarkerRef.current.setPopup(customerPopup);
     },
-    [customerLat, customerLon, customerAddress, currentOrderStatus]
+    [customerLat, customerLon, customerAddress]
   );
 
   const createAgentMarker = useCallback(
     (map: mapboxgl.Map, lat: number, lon: number) => {
-      if (agentMarkerRef.current) {
-        agentMarkerRef.current.setLngLat([lon, lat]);
+      if (!map || !lat || !lon) {
         return;
       }
 
-      agentMarkerRef.current = new mapboxgl.Marker({
-        color: "purple",
-      })
-        .setLngLat([lon, lat])
-        .addTo(map);
+      if (agentMarkerRef.current) {
+        try {
+          agentMarkerRef.current.setLngLat([lon, lat]);
+        } catch (error) {
+          // If update fails, remove and recreate
+          agentMarkerRef.current.remove();
+          agentMarkerRef.current = null;
+        }
+        if (agentMarkerRef.current) return;
+      }
 
-      // Add popup for agent
-      const agentPopup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-        <div class="text-center">
-          <h3 class="font-semibold text-purple-900">🚚 Delivery Agent</h3>
-          <p class="text-sm text-gray-600">Current location</p>
-          ${
-            currentAgentStatus
-              ? `<p class="text-xs mt-1 px-2 py-1 rounded bg-purple-100 text-purple-800">${currentAgentStatus}</p>`
-              : ""
-          }
-        </div>
-      `);
+      try {
+        agentMarkerRef.current = new mapboxgl.Marker({
+          color: "#F59E0B",
+        })
+          .setLngLat([lon, lat])
+          .addTo(map);
 
-      agentMarkerRef.current.setPopup(agentPopup);
+        const agentPopup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
+          <div class="text-center">
+            <h3 class="font-semibold text-yellow-900">📍 Delivery Agent</h3>
+            <p class="text-sm text-gray-600">Vehicle: Bike</p>
+            <p class="text-xs text-gray-500">Lat: ${lat.toFixed(6)}</p>
+            <p class="text-xs text-gray-500">Lng: ${lon.toFixed(6)}</p>
+            ${
+              currentOrderStatus
+                ? `<p class="text-xs mt-1 px-2 py-1 rounded bg-purple-100 text-purple-800">${currentOrderStatus}</p>`
+                : ""
+            }
+          </div>
+        `);
+
+        agentMarkerRef.current.setPopup(agentPopup);
+      } catch (error) {
+        agentMarkerRef.current = null;
+      }
     },
-    [currentAgentStatus]
+    [currentOrderStatus]
   );
-
   const addRoute = useCallback(
     async (map: mapboxgl.Map) => {
       try {
+        let startLat, startLon;
+        if (currentAgentLat && currentAgentLon && shouldShowAgentTracking) {
+          startLat = currentAgentLat;
+          startLon = currentAgentLon;
+        } else {
+          startLat = storeLat;
+          startLon = storeLon;
+        }
+
         const query = await fetch(
-          `https://api.mapbox.com/directions/v5/mapbox/driving/${storeLon},${storeLat};${customerLon},${customerLat}?steps=true&geometries=geojson&access_token=${mapboxgl.accessToken}`
+          `https://api.mapbox.com/directions/v5/mapbox/driving/${startLon},${startLat};${customerLon},${customerLat}?steps=true&geometries=geojson&access_token=${mapboxgl.accessToken}`
         );
         const json = await query.json();
 
@@ -230,7 +254,6 @@ export function MapViewer({
             },
           };
 
-          // Check if source already exists and map style is loaded
           if (map.isStyleLoaded()) {
             if (map.getSource(routeSourceId)) {
               (map.getSource(routeSourceId) as mapboxgl.GeoJSONSource).setData(
@@ -258,7 +281,6 @@ export function MapViewer({
               });
             }
           } else {
-            // Wait for style to load before adding route
             map.once("styledata", () => {
               if (map.getSource(routeSourceId)) {
                 (
@@ -288,9 +310,8 @@ export function MapViewer({
             });
           }
 
-          // Add route info to state
-          const distance = (data.distance / 1000).toFixed(1); // Convert to km
-          const duration = Math.round(data.duration / 60); // Convert to minutes
+          const distance = (data.distance / 1000).toFixed(1);
+          const duration = Math.round(data.duration / 60);
 
           setRouteInfo({
             distance: `${distance} km`,
@@ -302,7 +323,15 @@ export function MapViewer({
         setRouteInfo(null);
       }
     },
-    [storeLat, storeLon, customerLat, customerLon]
+    [
+      storeLat,
+      storeLon,
+      customerLat,
+      customerLon,
+      currentAgentLat,
+      currentAgentLon,
+      shouldShowAgentTracking,
+    ]
   );
 
   const removeRoute = useCallback((map: mapboxgl.Map) => {
@@ -319,18 +348,19 @@ export function MapViewer({
     (map: mapboxgl.Map) => {
       const bounds = new mapboxgl.LngLatBounds();
 
-      // Add store location to bounds
-      bounds.extend([storeLon, storeLat]);
+      if (
+        currentOrderStatus !== "Out for Delivery" &&
+        currentOrderStatus !== "Delivered"
+      ) {
+        bounds.extend([storeLon, storeLat]);
+      }
 
-      // Add customer location to bounds
       bounds.extend([customerLon, customerLat]);
 
-      // Add agent location if available and should be shown
       if (currentAgentLat && currentAgentLon && shouldShowAgentTracking) {
         bounds.extend([currentAgentLon, currentAgentLat]);
       }
 
-      // Fit map to show all markers with padding
       map.fitBounds(bounds, {
         padding: 50,
         maxZoom: 15,
@@ -344,6 +374,7 @@ export function MapViewer({
       currentAgentLat,
       currentAgentLon,
       shouldShowAgentTracking,
+      currentOrderStatus,
     ]
   );
 
@@ -355,95 +386,102 @@ export function MapViewer({
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/streets-v11",
-      center: [storeLon, storeLat], // Center on store initially
+      center: [storeLon, storeLat],
       zoom: 12,
     });
 
     mapRef.current = map;
 
     map.on("load", () => {
-      // Create markers
-      createStoreMarker(map);
       createCustomerMarker(map);
 
-      // Create agent marker if location is provided and should be shown
-      if (currentAgentLat && currentAgentLon && shouldShowAgentTracking) {
-        createAgentMarker(map, currentAgentLat, currentAgentLon);
-      }
+      createStoreMarker(map);
 
-      // Add route if showRoute is enabled
       if (showRoute) {
         addRoute(map);
       }
 
-      // Fit map to show all markers
-      fitMapToBounds(map);
+      setIsMapReady(true); 
     });
 
-    // Add navigation controls
+    map.on("error", (e) => {
+    });
+
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
     return () => {
+      if (storeMarkerRef.current) {
+        storeMarkerRef.current = null;
+      }
+      if (customerMarkerRef.current) {
+        customerMarkerRef.current = null;
+      }
+      if (agentMarkerRef.current) {
+        agentMarkerRef.current = null;
+      }
+      setIsMapReady(false); 
       map.remove();
     };
   }, []);
 
-  // Update agent marker when position changes (real-time or props)
   useEffect(() => {
-    if (
-      currentAgentLat &&
-      currentAgentLon &&
-      mapRef.current &&
-      shouldShowAgentTracking
-    ) {
+    if (mapRef.current) {
+      if (
+        currentOrderStatus === "Out for Delivery" ||
+        currentOrderStatus === "Delivered"
+      ) {
+        if (storeMarkerRef.current) {
+          storeMarkerRef.current.remove();
+          storeMarkerRef.current = null;
+        }
+      } else {
+        if (!storeMarkerRef.current) {
+          createStoreMarker(mapRef.current);
+        }
+      }
+
+      fitMapToBounds(mapRef.current);
+    }
+  }, [currentOrderStatus, createStoreMarker, fitMapToBounds]);
+
+  useEffect(() => {
+    if (!mapRef.current || !isMapReady) {
+      return;
+    }
+
+    if (currentAgentLat && currentAgentLon && shouldShowAgentTracking) {
       if (agentMarkerRef.current) {
-        // Smooth transition for real-time updates
-        agentMarkerRef.current.setLngLat([currentAgentLon, currentAgentLat]);
+        try {
+          agentMarkerRef.current.remove();
+          agentMarkerRef.current = null;
+
+          createAgentMarker(mapRef.current, currentAgentLat, currentAgentLon);
+        } catch (error) {
+          agentMarkerRef.current = null;
+          createAgentMarker(mapRef.current, currentAgentLat, currentAgentLon);
+        }
       } else {
         createAgentMarker(mapRef.current, currentAgentLat, currentAgentLon);
       }
 
-      // Update agent popup with current status
-      if (agentMarkerRef.current) {
-        const agentPopup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-          <div class="text-center">
-            <h3 class="font-semibold text-purple-900">🚚 Delivery Agent</h3>
-            <p class="text-sm text-gray-600">Current location</p>
-            ${
-              currentAgentStatus
-                ? `<p class="text-xs mt-1 px-2 py-1 rounded bg-purple-100 text-purple-800">${currentAgentStatus}</p>`
-                : ""
-            }
-            ${
-              isTrackingLive
-                ? `<p class="text-xs mt-1 text-green-600">🟢 Live tracking</p>`
-                : ""
-            }
-          </div>
-        `);
-        agentMarkerRef.current.setPopup(agentPopup);
-      }
-
-      // Only re-fit bounds if this is a significant location change
-      if (isTrackingLive) {
-        fitMapToBounds(mapRef.current);
-      }
+      setTimeout(() => {
+        if (mapRef.current) {
+          fitMapToBounds(mapRef.current);
+        }
+      }, 100);
     } else if (agentMarkerRef.current && !shouldShowAgentTracking) {
-      // Remove agent marker if it shouldn't be shown
       agentMarkerRef.current.remove();
       agentMarkerRef.current = null;
     }
   }, [
     currentAgentLat,
     currentAgentLon,
-    currentAgentStatus,
-    isTrackingLive,
     shouldShowAgentTracking,
+    isMapReady,
     createAgentMarker,
     fitMapToBounds,
   ]);
 
-  // Handle route display when showRoute prop changes
   useEffect(() => {
     if (mapRef.current) {
       if (showRoute) {
@@ -452,7 +490,7 @@ export function MapViewer({
         removeRoute(mapRef.current);
       }
     }
-  }, [showRoute, addRoute, removeRoute]);
+  }, [showRoute, addRoute, removeRoute, currentAgentLat, currentAgentLon]);
 
   return (
     <div className="relative">
@@ -465,7 +503,7 @@ export function MapViewer({
       {/* Map Info Panel */}
       <div className="absolute top-2 left-2 bg-white bg-opacity-90 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-gray-200">
         {/* Real-time tracking status */}
-        {shouldEnableRealTimeTracking && (
+        {/* {shouldEnableRealTimeTracking && (
           <div className="mb-2 text-xs">
             <div className="flex items-center space-x-1">
               <div
@@ -487,21 +525,24 @@ export function MapViewer({
               </span>
             </div>
           </div>
-        )}
+        )} */}
 
         {/* Map Legend */}
         <div className="space-y-1 text-xs">
-          <div className="flex items-center space-x-1">
-            <div
-              style={{
-                width: "8px",
-                height: "8px",
-                backgroundColor: "#3B82F6",
-                borderRadius: "50%",
-              }}
-            ></div>
-            <span className="text-blue-900">Store Location</span>
-          </div>
+          {currentOrderStatus !== "Out for Delivery" &&
+            currentOrderStatus !== "Delivered" && (
+              <div className="flex items-center space-x-1">
+                <div
+                  style={{
+                    width: "8px",
+                    height: "8px",
+                    backgroundColor: "#3B82F6",
+                    borderRadius: "50%",
+                  }}
+                ></div>
+                <span className="text-blue-900">Store Location</span>
+              </div>
+            )}
           <div className="flex items-center space-x-1">
             <div
               style={{
@@ -519,13 +560,11 @@ export function MapViewer({
                 style={{
                   width: "8px",
                   height: "8px",
-                  backgroundColor: "#9333EA",
+                  backgroundColor: "#F59E0B",
                   borderRadius: "50%",
                 }}
-              ></div>
-              <span className="text-purple-900">
-                Agent {isTrackingLive ? "(Live)" : ""}
-              </span>
+              ></div>{" "}
+              <span className="text-amber-900">Agent</span>
             </div>
           )}
         </div>

@@ -47,6 +47,7 @@ export function useAgentLocation({
   const watchIdRef = useRef<number | null>(null);
   const intervalIdRef = useRef<NodeJS.Timeout | null>(null);
   const lastLocationRef = useRef<LocationData | null>(null);
+  const isTrackingRef = useRef<boolean>(false);
 
   // Check geolocation permission
   const checkPermission = useCallback(async () => {
@@ -153,9 +154,9 @@ export function useAgentLocation({
           reject(new Error(errorMessage));
         },
         {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 60000, // 1 minute
+          enableHighAccuracy: false, // Use less accurate but faster location
+          timeout: 10000, // Reduced timeout to 10 seconds
+          maximumAge: 120000, // Allow 2 minute old location data
         }
       );
     });
@@ -174,9 +175,46 @@ export function useAgentLocation({
 
     try {
       setState((prev) => ({ ...prev, isTracking: true, error: null }));
+      isTrackingRef.current = true;
 
-      // Get initial position
-      const initialLocation = await getCurrentPosition();
+      // Get initial position with retry logic
+      let initialLocation;
+      try {
+        initialLocation = await getCurrentPosition();
+      } catch (error: any) {
+        // If initial location fails, try once more with lower accuracy
+        console.warn(
+          "Initial location failed, retrying with lower accuracy:",
+          error.message
+        );
+        try {
+          // Temporary override for fallback
+          const fallbackLocation = await new Promise<LocationData>(
+            (resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  resolve({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy: position.coords.accuracy,
+                    timestamp: position.timestamp,
+                  });
+                },
+                reject,
+                {
+                  enableHighAccuracy: false,
+                  timeout: 5000,
+                  maximumAge: 300000, // Allow 5 minute old location
+                }
+              );
+            }
+          );
+          initialLocation = fallbackLocation;
+        } catch (fallbackError: any) {
+          throw new Error(`Unable to get location: ${error.message}`);
+        }
+      }
+
       setState((prev) => ({ ...prev, currentLocation: initialLocation }));
       lastLocationRef.current = initialLocation;
 
@@ -205,12 +243,26 @@ export function useAgentLocation({
             }
           }
 
-          setState((prev) => ({ ...prev, currentLocation: location }));
+          setState((prev) => ({
+            ...prev,
+            currentLocation: location,
+            error: null,
+          }));
           lastLocationRef.current = location;
           await sendLocationUpdate(location);
         } catch (error: any) {
-          console.error("Periodic location update failed:", error);
-          setState((prev) => ({ ...prev, error: error.message }));
+          // Don't show timeout errors in UI - they're common and temporary
+          if (error.message.includes("timeout")) {
+            console.warn(
+              "Location request timed out, will retry on next interval"
+            );
+          } else {
+            console.error("Periodic location update failed:", error);
+            setState((prev) => ({
+              ...prev,
+              error: `Location error: ${error.message}`,
+            }));
+          }
         }
       }, interval);
 
@@ -221,6 +273,7 @@ export function useAgentLocation({
         isTracking: false,
         error: error.message,
       }));
+      isTrackingRef.current = false;
       onError?.(error.message);
       toast.error(`Failed to start tracking: ${error.message}`);
     }
@@ -245,17 +298,24 @@ export function useAgentLocation({
       intervalIdRef.current = null;
     }
 
-    setState((prev) => ({
-      ...prev,
-      isTracking: false,
-      error: null,
-    }));
+    setState((prev) => {
+      const wasTracking = prev.isTracking;
+      const newState = {
+        ...prev,
+        isTracking: false,
+        error: null,
+      };
 
-    // Only show toast if tracking was actually active
-    if (state.isTracking) {
-      toast.success("Location tracking stopped");
-    }
-  }, [state.isTracking]);
+      isTrackingRef.current = false;
+
+      // Show toast only if tracking was actually active
+      if (wasTracking) {
+        setTimeout(() => toast.success("Location tracking stopped"), 0);
+      }
+
+      return newState;
+    });
+  }, []); // Remove state.isTracking dependency
 
   // Manually update location
   const updateLocation = useCallback(async () => {
@@ -296,12 +356,12 @@ export function useAgentLocation({
 
   // Auto-start tracking when enabled
   useEffect(() => {
-    if (enabled && orderId && !state.isTracking) {
+    if (enabled && orderId && !isTrackingRef.current) {
       startTracking();
-    } else if (!enabled && state.isTracking) {
+    } else if (!enabled && isTrackingRef.current) {
       stopTracking();
     }
-  }, [enabled, orderId, state.isTracking, startTracking, stopTracking]);
+  }, [enabled, orderId, startTracking, stopTracking]);
 
   // Check permission on mount
   useEffect(() => {
