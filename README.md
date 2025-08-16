@@ -1,6 +1,5 @@
 # Order Tracker Frontend
 
-> **Job Interview Assignment** - A modern, real-time order tracking system demonstrating full-stack development skills with Next.js, real-time features, and interactive maps.
 
 ## 🌐 Live Deployment
 
@@ -12,7 +11,7 @@ This project showcases a complete order tracking solution with the following tec
 
 - **Real-time Order Tracking**: Live location updates and status synchronization
 - **Interactive Maps**: Mapbox integration with dynamic route visualization  
-- **Role-based Architecture**: Multi-tenant system with Admin, Agent, and Customer interfaces
+- **Role-based Architecture**: Multi Role system with Admin, Agent interfaces
 - **WebSocket Integration**: Real-time bidirectional communication using Socket.IO
 - **Responsive Design**: Mobile-first UI with modern design patterns
 - **State Management**: Optimistic updates and real-time state synchronization
@@ -143,7 +142,6 @@ graph TB
 ### Authentication
 
 - `POST /api/v1/auth/login` - User login
-- `POST /api/v1/auth/logout` - User logout
 
 ### Orders
 
@@ -217,12 +215,6 @@ graph TB
 
 ## 🔐 User Roles & Permissions
 
-### Customer
-
-- Place new orders
-- Track existing orders
-- View order status and agent location
-
 ### Agent
 
 - View assigned orders
@@ -243,12 +235,6 @@ graph TB
 
 The application is deployed and accessible at: **[https://order-tracker-frontend-tau.vercel.app/](https://order-tracker-frontend-tau.vercel.app/)**
 
-### Production Build
-
-```bash
-npm run build
-npm run start
-```
 
 ### Environment Variables
 
@@ -259,68 +245,8 @@ NEXT_PUBLIC_API_BASE_URL=your_production_api_url
 NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_access_token
 ```
 
-## 🚧 Future Improvements & Next Steps
 
-### Short-term Enhancements (1-2 weeks)
-- **Push Notifications**: Browser and mobile push notifications for order updates
-- **Advanced Filtering**: Order filtering by date, status, customer, and location
-- **Export Features**: PDF reports and CSV export for admin analytics
-- **Offline Support**: Service worker implementation for offline functionality
-- **Performance Optimization**: Image optimization, lazy loading, and code splitting
 
-### Medium-term Features (1-2 months)
-- **Advanced Analytics**: Charts, graphs, and detailed performance metrics
-- **Multi-language Support**: i18n implementation for global usage
-- **Mobile App**: React Native app with native geolocation features
-- **Advanced Map Features**: Clustering, heatmaps, and route optimization
-- **Payment Integration**: Stripe/PayPal integration for order payments
-- **Customer Communication**: In-app chat and SMS notifications
-
-### Long-term Roadmap (3-6 months)
-- **AI/ML Integration**: Delivery time prediction and route optimization
-- **Multi-tenant Architecture**: Support for multiple delivery companies
-- **Advanced Security**: 2FA, audit logs, and enhanced data protection
-- **API Rate Limiting**: Enhanced security and performance controls
-- **Microservices**: Break down into smaller, scalable services
-- **Database Optimization**: Implement read replicas and caching strategies
-
-### Technical Debt & Code Quality
-- **Test Coverage**: Increase unit and integration test coverage to 90%+
-- **Error Monitoring**: Implement Sentry for production error tracking
-- **Code Documentation**: Add comprehensive JSDoc comments
-- **Performance Monitoring**: Implement Lighthouse CI for performance tracking
-- **Security Audit**: Regular dependency updates and security scanning
-
-## 🤝 Development Notes
-
-This project was developed as a **job interview assignment** to demonstrate:
-
-### Technical Skills Showcased
-- **Frontend Development**: Modern React patterns, TypeScript, and responsive design
-- **Real-time Systems**: WebSocket implementation and state synchronization
-- **API Integration**: RESTful API consumption and error handling
-- **UI/UX Design**: Professional interface design and user experience
-- **Code Organization**: Clean architecture and maintainable code structure
-
-### Development Approach
-- **Component-driven Development**: Reusable and maintainable component architecture
-- **Performance First**: Optimized rendering and efficient state management
-- **User-Centric Design**: Intuitive interfaces for different user roles
-- **Scalable Architecture**: Prepared for future enhancements and scaling
-
-### Time Investment
-- **Total Development Time**: ~40-50 hours over 1-2 weeks
-- **Planning & Design**: 20% - Architecture planning and UI/UX design
-- **Core Development**: 60% - Feature implementation and integration
-- **Testing & Polish**: 20% - Bug fixes, testing, and documentation
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-**Developed by [Abhisek Kar](https://github.com/abhisek-kar) for technical assessment**
 
 
 
